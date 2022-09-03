@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2021.2">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.TextInput.TextInput">
+        <Position x="54" y="282" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <NumRows value="1" />
+          <Fields>
+            <Field name="Métrique" />
+          </Fields>
+          <Data>
+            <r>
+              <c>décès</c>
+            </r>
+          </Data>
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText />
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxBasePluginsEngine.dll" EngineDllEntryPoint="AlteryxTextInput" />
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="JupyterCode">
+        <Position x="342" y="78" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <WorkflowName>c:\users\egakosso\downloads\alteryx x power bi\leçons interactives alteryx\import excel website test alteryx app\extraction vidéo bar chart race avec python.yxmd</WorkflowName>
+          <JupyterProduction>false</JupyterProduction>
+          <vEnvName>designerbasetools_venv</vEnvName>
+          <DefaultVenv>1</DefaultVenv>
+          <productionModeScript />
+          <Port>51184</Port>
+          <JupyterGuidDir>05bec34207faa78c26f24d2e9cd70a7f</JupyterGuidDir>
+          <JupyterGuidCopy />
+          <LastExecutedByEngineVersion>2021.2.2.45235</LastExecutedByEngineVersion>
+          <Notebook><![CDATA[{"cells":[{"cell_type":"markdown","metadata":{"ayx":{"cell_class":"text_cell","cell_css":"border: 3px solid #357; margin: 4px; background: #fbffff","cell_type":"markdown","contents_keyword":"Alteryx.help()","first_line":"Run `Alteryx.help()` for info about useful functions.","label":"info"}},"source":["Run `Alteryx.help()` for info about useful functions.  \n","i.e., `Alteryx.read(\"#1\")`, `Alteryx.write(df,1)`, `Alteryx.getWorkflowConstant(\"Engine.WorkflowDirectory\")`"]},{"cell_type":"code","execution_count":1,"metadata":{},"outputs":[],"source":["########## La création du fichier sur le disque devient inutile. Ils seront compilés directement \n","########## en entrée de données via alteryx. Il faut juste exécuter le Step1.\n","\n","\n","from ayx import Alteryx\n","import datetime as dt\n","import time #Temps d'exécution uniquement\n","import bar_chart_race as bcr\n","import numpy as np\n","import warnings\n","warnings.filterwarnings(\"ignore\")\n","import pandas as pd\n","import requests\n","from bs4 import BeautifulSoup\n","import io\n","import os\n","\n","data_directories = Alteryx.read(\"#1\")\n","\n","métrique = data_directories[\"Métrique\"].head(1).item().title() #### Sélection de la métrique voulue par l'utilisateur pour la création de la vidéo\n","\n","path_export_video = data_directories[\"Directory\"].head(1).item() #### Dossier où sera exportée la vidéo.\n","\n","\n","# Lien github où se trouvent les données quotidiennes mises à jour\n","lien_github = \"https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_daily_reports\"\n","\n","start = time.time() # Début de l'exécution\n","\n","requete = requests.get(lien_github)\n","page = requete.content\n","soup = BeautifulSoup(page)\n","\n","# Indexation des balises \"a\" et class \"js-navigation-open Link--primary\" qui permettront de récupérer uniquement les noms de fichiers\n","\n","a = soup.find_all(\"a\", {\"class\": \"js-navigation-open Link--primary\"})\n","liste_fichiers = [elt.string.strip() for elt in a]\n","\n","fichiers_2021 = [i for i in liste_fichiers if (i[6:10] == \"2021\") or (i[6:10] == \"2020\") ] #Noms de fichiers ne concernant que l'année 2021\n","\n","chemins_complets = list()\n","\n","# Lien du chemin brut du github vers les fichiers\n","raw_file = \"https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/\"\n","\n","for name_file in fichiers_2021 :\n","    # On récupère les fichiers qui correspondent uniquement à 2021 et on reconsitue le chemin complet vers le Github\n","    name_file = raw_file+name_file\n","    chemins_complets.append(name_file)\n","\n","\n","\n","data = pd.DataFrame() # Tableau de données qui contiendra les informations sur les données 2021\n","        \n","# Téléchargement du fichier .csv à partir d'un compte Github\n","for file in chemins_complets:\n","    \n","    url = file # S'assurer que le lien du fichier Github est en format \"brut\"\n","    download = requests.get(url).content\n","\n","    # Lecture des fichiers téléchargés et compilation dans le dataframe \"data\"\n","\n","    df = pd.read_csv(io.StringIO(download.decode('utf-8')))\n","    data = data.append(df)\n","    \n","    \n","# Suppression des colonnes inutiles et renommage d'une colonne de date\n","\n","data.drop(['FIPS', 'Admin2', 'Province_State','Lat', 'Long_','Active','Combined_Key', 'Incident_Rate', 'Case_Fatality_Ratio'] , axis = 1 , inplace = True)\n","\n","data.rename(columns = {\"Last_Update\":\"Date\",\n","                      \"Country_Region\":\"Pays\",\n","                      \"Confirmed\":\"Cas confirmés\",\n","                      \"Deaths\":\"Décès\",\n","                      \"Recovered\":\"Rétablissements\"} , inplace = True)\n","\n","## Retraitement des dates\n","\n","data[\"Date\"].astype(\"object\")\n","data[\"Date\"] = pd.to_datetime(data['Date']).dt.floor('d')\n","\n","date_actuelle = str(data[\"Date\"].max())[:10] #Récupération de la date la plus récente pour l'en-tête de vidéo.\n","\n","# Tri des données par date\n","\n","data.sort_values(by = 'Date', ascending = True ,inplace = True)\n","\n","        ###### CREATION DES VIDEOS EN FONCTION DE LA METRIQUE SELECTIONNEE PAR L'UTILISATEUR ######\n","\n","\n","#L'utilisateur choisit de voir les données concernant les décès\n","\n","if métrique in (\"Décès\",\"Infections\",\"Rétablissements\"):\n","\n","    if métrique == \"Décès\":\n","\n","            ## TCD de décès\n","\n","        Décès = pd.pivot_table(data, values = 'Décès', index = ['Date'],columns=['Pays'], aggfunc = np.sum)\n","\n","        ## Remplacement des valeurs nulles par 0 et conversion en données numériques\n","\n","        Décès = Décès.fillna(0).astype(\"int64\")\n","\n","        ## Retraitement sur les noms de pays\n","\n","        Décès.columns = [col.replace(\"_\",\" \") for col in Décès.columns]\n","\n","        country_reserved_3 = set()\n","        for index , row in Décès.iterrows():\n","            country_reserved_3 |= set(row[row > 0].sort_values(ascending = False).head(15).index)\n","\n","        Décès = Décès[list(country_reserved_3)]\n","\n","        bcr.bar_chart_race(\n","                            df = Décès,\n","                            filename = path_export_video+\"\\\\covid-19_\"+métrique+\"_\"+date_actuelle+\".mp4\",\n","                            n_bars = 10,\n","                            period_fmt = \"%B %d,%Y\",\n","                            interpolate_period = True,\n","                            figsize = (10,7),\n","                            title = \"Evolution chronologique des \"+métrique+ \" au \" + date_actuelle+\" .\"\n","                            )\n","\n","        print(\"\\nExportation de la vidéo réussie dans le dossier indiqué. Bon visionnage!\") \n","\n","    #L'utilisateur choisit de voir les données concernant les infections\n","\n","    elif métrique == \"Infections\":\n","\n","            ## TCD de cas confirmés ou infections\n","\n","        Infections = pd.pivot_table(data, values = 'Cas confirmés', index = ['Date'],columns=['Pays'], aggfunc = np.sum)  \n","\n","        Infections = Infections.fillna(0).astype(\"int64\")\n","\n","        Infections.columns = [col.replace(\"_\",\" \") for col in Infections.columns]\n","\n","        country_reserved_3 = set()\n","        for index , row in Infections.iterrows():\n","            country_reserved_3 |= set(row[row > 0].sort_values(ascending = False).head(15).index)\n","\n","        Infections = Infections[list(country_reserved_3)]\n","\n","        bcr.bar_chart_race(\n","                            df = Infections,\n","                            filename = path_export_video+\"\\\\covid-19_\"+métrique+\"_\"+date_actuelle+\".mp4\",\n","                            n_bars = 10,\n","                            period_fmt = \"%B %d,%Y\",\n","                            interpolate_period = True,\n","                            figsize = (10,7),\n","                            title = \"Evolution chronologique des \"+métrique+ \" au \" + date_actuelle+\" .\"\n","                            )\n","\n","        print(\"\\nExportation de la vidéo réussie dans le dossier indiqué. Bon visionnage!\")   \n","\n","    #L'utilisateur choisit de voir les données concernant les guérisons\n","\n","    elif métrique == \"Rétablissements\":\n","\n","\n","            ## TCD de guérisons\n","\n","        Rétablissements = pd.pivot_table(data, values = 'Rétablissements', index = ['Date'],columns=['Pays'], aggfunc = np.sum)\n","\n","        Rétablissements = Rétablissements.fillna(0).astype(\"int64\")\n","\n","        Rétablissements.columns = [col.replace(\"_\",\" \") for col in Rétablissements.columns]\n","\n","        country_reserved_3 = set()\n","        for index , row in Rétablissements.iterrows():\n","            country_reserved_3 |= set(row[row > 0].sort_values(ascending = False).head(15).index)\n","\n","        Rétablissements = Rétablissements[list(country_reserved_3)]\n","\n","        bcr.bar_chart_race(\n","                            df = Rétablissements,\n","                            filename = path_export_video+\"\\\\covid-19_\"+métrique+\"_\"+date_actuelle+\".mp4\",\n","                            n_bars = 10,\n","                            period_fmt = \"%B %d,%Y\",\n","                            interpolate_period = True,\n","                            figsize = (10,7),\n","                            title = \"Evolution chronologique des \"+métrique+ \" au \" + date_actuelle+\" .\")\n","\n","        print(\"\\nExportation de la vidéo réussie dans le dossier indiqué. Bon visionnage!\")\n","        \n","    else :\n","        \n","        pass\n","\n","else :\n","    print(\"Le nom de la métrique choisie n'est pas le bon. Veuillez saisir Décès, Infections ou Rétablissements.\")\n","\n","    \n","end = time.time()\n","print(f\"\\nL'exécution du script a duré {round((end - start)/60)} minutes.\")"]}],"metadata":{"kernelspec":{"display_name":"designerbasetools_venv","language":"python","name":"designerbasetools_venv"},"language_info":{"codemirror_mode":{"name":"ipython","version":3},"file_extension":".py","mimetype":"text/x-python","name":"python","nbconvert_exporter":"python","pygments_lexer":"ipython3","version":"3.8.5"}},"nbformat":4,"nbformat_minor":2}]]></Notebook>
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText />
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxJupyterPluginEngine.dll" EngineDllEntryPoint="AlteryxJupyter" />
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Directory.Directory">
+        <Position x="54" y="78" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Directory>C:\Users\egakosso\Downloads\ALTERYX X POWER BI\Leçons interactives alteryx\Import Excel website Test Alteryx App</Directory>
+          <FileSpec>*.*</FileSpec>
+          <IncludeSubDirs value="False" />
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText>dir C:\Users\egakosso\Downloads\ALTERYX X POWER BI\Leçons interactives alteryx\Import Excel website Test Alteryx App\*.*</DefaultAnnotationText>
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxBasePluginsEngine.dll" EngineDllEntryPoint="AlteryxDirectory" />
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.AppendFields.AppendFields">
+        <Position x="246" y="90" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <CartesianMode>Error</CartesianMode>
+          <SelectConfiguration>
+            <Configuration outputConnection="Output">
+              <OrderChanged value="False" />
+              <CommaDecimal value="False" />
+              <SelectFields>
+                <SelectField field="*Unknown" selected="True" />
+              </SelectFields>
+            </Configuration>
+          </SelectConfiguration>
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText />
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxBasePluginsEngine.dll" EngineDllEntryPoint="AlteryxAppendFields" />
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.BrowseV2.BrowseV2">
+        <Position x="438" y="54" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <TempFile>C:\Users\egakosso\AppData\Local\Temp\Engine_12488_45e86b1208cc4f4da6c8f1e8fdfa99be_\Engine_22596_e6091779fb7843f1851b6a0d1ceaa7e0_.yxdb</TempFile>
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText />
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxBasePluginsEngine.dll" EngineDllEntryPoint="AlteryxBrowseV2" />
+    </Node>
+    <Node ToolID="6">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Formula.Formula">
+        <Position x="150" y="282" />
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <FormulaFields />
+        </Configuration>
+        <Annotation DisplayMode="0">
+          <Name />
+          <DefaultAnnotationText><![CDATA[
+]]></DefaultAnnotationText>
+          <Left value="False" />
+        </Annotation>
+      </Properties>
+      <EngineSettings EngineDll="AlteryxBasePluginsEngine.dll" EngineDllEntryPoint="AlteryxFormula" />
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output" />
+      <Destination ToolID="6" Connection="Input" />
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output1" />
+      <Destination ToolID="5" Connection="Input" />
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Output" />
+      <Destination ToolID="4" Connection="Targets" />
+    </Connection>
+    <Connection>
+      <Origin ToolID="6" Connection="Output" />
+      <Destination ToolID="4" Connection="Source" />
+    </Connection>
+    <Connection name="#1">
+      <Origin ToolID="4" Connection="Output" />
+      <Destination ToolID="2" Connection="Input" />
+    </Connection>
+  </Connections>
+  <Properties>
+    <Memory default="True" />
+    <GlobalRecordLimit value="0" />
+    <TempFiles default="True" />
+    <Annotation on="True" includeToolName="False" />
+    <ConvErrorLimit value="10" />
+    <ConvErrorLimit_Stop value="False" />
+    <CancelOnError value="False" />
+    <DisableBrowse value="False" />
+    <EnablePerformanceProfiling value="False" />
+    <PredictiveToolsCodePage value="1252" />
+    <DisableAllOutput value="False" />
+    <ShowAllMacroMessages value="False" />
+    <ShowConnectionStatusIsOn value="True" />
+    <ShowConnectionStatusOnlyWhenRunning value="False" />
+    <ZoomLevel value="0" />
+    <LayoutType>Horizontal</LayoutType>
+    <MetaInfo>
+      <NameIsFileName value="True" />
+      <Name>Extraction vidéo bar chart race avec python</Name>
+      <Description />
+      <RootToolName />
+      <ToolVersion />
+      <ToolInDb value="False" />
+      <CategoryName />
+      <SearchTags />
+      <Author />
+      <Company />
+      <Copyright />
+      <DescriptionLink actual="" displayed="" />
+      <Example>
+        <Description />
+        <File />
+      </Example>
+      <WorkflowId value="0fade9f3-6d05-4cd1-ae5c-7791c8090233" />
+      <Telemetry>
+        <PreviousWorkflowId value="cbf91eb9-1055-411b-8af3-eae1f978e3a3" />
+        <OriginWorkflowId value="0fade9f3-6d05-4cd1-ae5c-7791c8090233" />
+      </Telemetry>
+    </MetaInfo>
+    <Events>
+      <Enabled value="True" />
+    </Events>
+  </Properties>
+</AlteryxDocument>
